@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+#
+# This file is part of DocOps, a documentation operations helper library.
+# Copyright © 2016 seamus tuohy, <s2e@seamustuohy.com>
+#
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option)
+# any later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE. See the included LICENSE file for details.
+
+# Setup
+
+
+# http://redsymbol.net/articles/unofficial-bash-strict-mode/
+set -euo pipefail
+
+# TODO remove DEBUGGING
+set -x
+
+
+main() {
+    dependencies
+    installation
+    tests
+}
+
+tests() {
+    echo "Running Tests"
+    make test
+}
+
+dependencies() {
+    echo "Installing Dependencies"
+    apt_install "python3"
+    apt_install "python3-pip"
+}
+
+installation() {
+    echo "Installing DocOps"
+    make devinstall
+}
+
+apt_install(){
+    local package="${1}"
+    local installed=$(dpkg --get-selections \
+                               | grep -v deinstall \
+                               | grep -E "^${package}\s+install"\
+                               | grep -o "${package}")
+    if [[ "${installed}" = ""  ]]; then
+        echo "Installing ${package} via apt-get"
+        sudo apt-get -y install "${package}"
+        echo "Installation of ${package} completed."
+    else
+        echo "${package} already installed. Skipping...."
+    fi
+}
+
+cleanup() {
+    # put cleanup needs here
+    echo "Exiting Vagrant Installer"
+    exit 0
+}
+
+trap 'cleanup' EXIT
+
+
+main
