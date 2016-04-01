@@ -23,14 +23,25 @@ import logging
 logging.basicConfig(level=logging.ERROR)
 log = logging.getLogger(__name__)
 
-class archive(object):
+class Archive(object):
     """
+
+    :returns:  object
+
     http://timetravel.mementoweb.org/guide/api/
     http://www.mementoweb.org/guide/quick-intro/
     http://examinemint.com/about-the-time-travel-service/
     """
 
     def __init__(self, target_url, submission_url="http://web.archive.org/save/", request_url="http://timetravel.mementoweb.org/api/json/"):
+        """
+        :param target_url: The url that will be
+        :type name: str.
+        :param submission_url: The url used to submit links for archiving.
+        :type name: str.
+        :param request_url: The url used to request archive information about a link.
+        :type name: str.
+        """
         self.raw = None
         self.mementos = None
         self.sources = namedtuple("source", ["target", "submission", "request"])
@@ -39,11 +50,10 @@ class archive(object):
         self.sources.request = request_url
 
     def request(self):
-        """ Request an archive's url from the time travel service
+        """ Request an archive's url
 
-        Args:
-            timestamp: The format of the timestamp is 1-14 digits (YYYYMMDDhhmmss)
-
+        :raises: ValueError
+        :returns:  str -- The URI of an archive for the target URI.
         """
         if self.mementos is None:
             self.find()
@@ -57,11 +67,14 @@ class archive(object):
 
         if memento_uri is None:
             raise ValueError("No archived versions can be found")
-
-        return memento_uri
+        # Return the first link in the uri array.
+        return memento_uri[0]
 
     def submit(self):
-        """Submit a url to be archived"""
+        """Submit a url to be archived
+
+        :raises: RobotAccessControlException, MissingArchiveError
+        """
         try:
             # Submit the url
             urlopen(self.sources.submission + self.sources.target)
@@ -81,10 +94,11 @@ class archive(object):
                                           "points to active site and try again.")
 
     def find(self, timestamp=None):
-        """Get archive information for an archived item.
+        """Get archive information for an archived item from the time travel service
 
-        Args:
-            timestamp: The format of the timestamp is 1-14 digits (YYYYMMDDhhmmss)
+        :param target_url: A desired datetime you wish the targeted URI to be close to. The format of the timestamp is 1-14 digits (YYYYMMDDhhmmss)
+        :type name: str.
+        :raises: NotImplementedError, ValueError, MissingArchiveError
 
         Timetravel API: http://timetravel.mementoweb.org/guide/api
 
@@ -103,6 +117,7 @@ class archive(object):
              "timemap_uri":{"json_format":"http://timetravel.mementoweb.org/timemap/json/http://seamustuohy.com/",
                             "link_format":"http://timetravel.mementoweb.org/timemap/link/http://seamustuohy.com/"}}
         """
+
         # Request URL
         # http://timetravel.mementoweb.org/memento/YYYY<MM|DD|HH|MM|SS>/URI
         if timestamp is None:
