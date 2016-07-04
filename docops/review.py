@@ -80,18 +80,24 @@ class Archive(object):
             urlopen(self.sources.submission + self.sources.target)
         except HTTPError as e:
             response_info = e.info()
-            archive_error = response_info['X-Archive-Wayback-Runtime-Error'].split(":")[0]
-            if archive_error == "RobotAccessControlException":
-                # 403 = Not allowing internet archive bot
-                raise RobotAccessControlException("The url cannot be archived." +
-                                                  "Internet archives is blocked " +
-                                                  "from archiving it " +
-                                                  "by the sites robots.txt")
-            elif archive_error == "LiveDocumentNotAvailableException":
-                # 502 = Unavailable
-                raise MissingArchiveError("The url could not be reached for " +
-                                          "archiving. Check that the url " +
-                                          "points to active site and try again.")
+            wayback_error = response_info.get('X-Archive-Wayback-Runtime-Error', None)
+            if wayback_error is None:
+                log.debug("Unknown HTTP error occurred")
+                raise UnknownArchiveException(response_info)
+            else:
+                archive_error = wayback_error.split(":")[0]
+                if archive_error == "RobotAccessControlException":
+                    # 403 = Not allowing internet archive bot
+                    raise RobotAccessControlException("The url cannot be archived." +
+                                                      "Internet archives is blocked " +
+                                                      "from archiving it " +
+                                                      "by the sites robots.txt")
+                elif archive_error == "LiveDocumentNotAvailableException":
+                    # 502 = Unavailable
+                    raise MissingArchiveError("The url could not be reached for " +
+                                              "archiving. Check that the url " +
+                                              "points to active site and try again.")
+
 
     def find(self, timestamp=None):
         """Get archive information for an archived item from the time travel service
@@ -143,6 +149,23 @@ class Archive(object):
                 time_query = self.sources.request + timestamp + "/"
 
         archive_query = time_query + self.sources.target
+
+        try:
+            mementos = self._get_archive_json(archive_query)
+        except ValueError:
+            # Occasionally it will return the HTML instead
+            # so we sleep and try once more
+            time.sleep(1)
+            mementos = None
+        if mementos is None:
+            try:
+                mementos = self._get_archive_json(archive_query)
+            except ValueError:
+                pass
+        self.mementos = mementos
+
+
+    def _get_archive_json(self, archive_query):
         try:
             archive_check = urlopen(archive_query)
         except HTTPError as e:
@@ -153,15 +176,15 @@ class Archive(object):
                 raise NotImplementedError("Archive encountered an error " +
                                           "it was not prepared to handle " +
                                           "when processing {0}".format(self.sources.target))
-
-        archive_data = archive_check.read().decode('utf-8')
+        archive_query = archive_check.read()
+        archive_data = archive_query.decode('utf-8')
         log.debug("Data Received from wayback archive:" +
                   "{0}".format(archive_data))
         self.raw = archive_data
 
         # Parse Data
         parsed_data = json.loads(self.raw)
-        self.mementos = parsed_data['mementos']
+        return parsed_data['mementos']
 
 
 class MissingArchiveError(Exception):
@@ -170,4 +193,8 @@ class MissingArchiveError(Exception):
 
 class RobotAccessControlException(Exception):
     """ Exception class for content blocked by robots.txt, etc."""
+    pass
+
+class UnknownArchiveException(Exception):
+    """Exception raised when an archive for a url does not exist."""
     pass
